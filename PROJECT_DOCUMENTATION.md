@@ -320,16 +320,33 @@ CREATE TABLE location_synonyms (
 │ Project Name or "X Villas + Y Buildings in Location" │
 │ By Developer Name                                     │
 │ 📍 Master Project                                     │
-│    Area Name                                          │
-│ 🏠 X villas  🏢 Y buildings  👥 Z units              │
+│    Area Name (lighter color)                          │
+│ 🏠 X villas  🏢 Y buildings  ⊞ Z units               │
 │ 📅 Started/Scheduled Date                             │
 │ [████████░░░░░░░░░░░] 45%                            │
 └─────────────────────────────────────────┘
 ```
 
+**RERA Project Detail Page:**
+```
+┌─────────────────────────────────────────┐
+│ Project #12345                                        │
+│ Project Name in Location (large title)                │
+│ 📍 Master Project                                     │
+│    Area Name (lighter color)                          │
+│ [Status Badge]                                        │
+│ [████████░░░░░░░░░░░] 45%                            │
+│                                                       │
+│ [Project Overview Card with Timeline]                 │
+│ [Summary Card - Villas, Buildings, Units, Area]       │
+│ [Companies Involved Card]                             │
+│ [Permit History Card]                                 │
+└─────────────────────────────────────────┘
+```
+
 **Project Type Badges:**
 - **Amber/Orange**: Villa/Townhouse (warmth, luxury)
-- **Teal/Cyan**: Building (residential community)
+- **Blue**: Building (residential/commercial)
 - Projects with both show both badges
 
 **RERA Filters:**
@@ -341,12 +358,28 @@ CREATE TABLE location_synonyms (
 **Construction Project Card:**
 ```
 ┌─────────────────────────────────────────┐
-│ #PRJ-12345                     [Status] │
-│ New Construction for Residential        │
-│ 📍 Area Name                            │
-│ 💼 Consultant Name                      │
-│ 🔧 Contractor Name                      │
-│ 📅 Created/Scheduled Date               │
+│ Project #12345                  [Status] │
+│ <Project Type> for <Building Type>       │
+│ 📍 Area Name                             │
+│ 💼 Consultant Name                       │
+│ 🔧 Contractor Name                       │
+│ 🏢 Developer Name                        │
+│ 📅 Created/Scheduled Date                │
+└─────────────────────────────────────────┘
+```
+
+**Construction Project Detail Page:**
+```
+┌─────────────────────────────────────────┐
+│ Project #12345                                        │
+│ <Project Type> for <Building Type> in <Location>      │
+│ [Status Badge]                                        │
+│                                                       │
+│ [Part of Developer Project Card] (if linked)          │
+│ [Project Overview Card with Timeline]                 │
+│ [Summary Card - Area sq ft]                           │
+│ [Companies Involved Card]                             │
+│ [Permit History Card]                                 │
 └─────────────────────────────────────────┘
 ```
 
@@ -475,10 +508,55 @@ getAreaLookup()
 ### Utilities
 ```typescript
 formatDate(dateStr)
-getStatusColor(status)
+normalizeStatus(status)      // Treats CONDITIONAL_ACTIVATING as Active
+formatStatus(status)         // Title Case, hides Not Started/Pending
+getStatusColor(status)       // green=Active, blue=Completed, yellow=On Hold, red=Cancelled
 transliterateArabicToEnglish(text)
 containsArabic(text)
 ```
+
+---
+
+## Status Handling
+
+**Status Normalization:**
+- `CONDITIONAL_ACTIVATING` is treated as `Active`
+- Status displayed in Title Case (e.g., "Active", "Completed")
+
+**Hidden Statuses:**
+- `Not Started` - badge not shown
+- `Pending` - badge not shown
+
+**Status Badge Colors:**
+| Status | Color | Badge Variant |
+|--------|-------|---------------|
+| Active, In Progress, Ongoing | Green | success |
+| Completed, Done | Blue | info |
+| On Hold, Delayed | Yellow | warning |
+| Cancelled, Terminated | Red | destructive |
+| Other | Gray | secondary |
+
+**Status Filter:**
+- CONDITIONAL_ACTIVATING is filtered out from dropdown (users select "Active" instead)
+- When filtering by Active, both ACTIVE and CONDITIONAL_ACTIVATING records are included
+
+---
+
+## Icons (Lucide React)
+
+| Purpose | Icon | Usage |
+|---------|------|-------|
+| Villas | `Home` | Villa count, Villa badge |
+| Buildings | `Building2` | Building count, Developer |
+| Units | `LayoutGrid` | Unit count |
+| Lands | `LandPlot` | Land count |
+| Area (sq ft) | `Square` | Property area |
+| Location | `MapPin` | Area name, address |
+| Date/Calendar | `Calendar` | Timeline dates |
+| Consultant | `Briefcase` | Consultant company |
+| Contractor | `HardHat` | Contractor company |
+| Permits | `FileText` | Permit history |
+| Companies | `Users` | Companies involved |
 
 ---
 
