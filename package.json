@@ -1,0 +1,23 @@
+{
+  "name": "prospectsdata",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:web": "cd web && npm run dev",
+    "dev:admin": "cd admin && npm run dev",
+    "dev": "npm run dev:web & npm run dev:admin",
+    "build:web": "cd web && npm run build",
+    "build:admin": "cd admin && npm run build",
+    "build": "npm run build:web && npm run build:admin",
+    "import:projects": "tsx scripts/import-projects.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.3",
+    "papaparse": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/papaparse": "^5.3.14",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

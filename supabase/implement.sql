@@ -1,0 +1,6 @@
+-- ============================================================
+-- PROSPECTS DATA - SQL IMPLEMENTATION FILE
+-- ============================================================
+-- This file contains SQL scripts to run in Supabase.
+-- Run sections as needed.
+-- ============================================================

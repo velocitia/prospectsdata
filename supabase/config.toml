@@ -1,0 +1,33 @@
+# Supabase Configuration
+# See: https://supabase.com/docs/guides/cli/config
+
+[project]
+id = "your-project-id"
+
+[api]
+# Port to use for the API URL
+port = 54321
+# Schemas to expose in your API
+schemas = ["public"]
+# Extra schemas to add to the search_path
+extra_search_path = ["public"]
+# The maximum number of rows returned from a view, table, or stored procedure
+max_rows = 1000
+
+[db]
+# Port to use for the local database URL
+port = 54322
+# The database major version to use
+major_version = 15
+
+[studio]
+# Port to use for Supabase Studio
+port = 54323
+
+[inbucket]
+# Port to use for the email testing server
+port = 54324
+
+[storage]
+# The maximum file size allowed
+file_size_limit = "50MiB"
