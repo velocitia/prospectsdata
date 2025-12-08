@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Building2, Calendar, FileText, Briefcase, HardHat, ExternalLink, Users, Square, MapPin } from 'lucide-react';
+import { ArrowLeft, Building2, Calendar, FileText, Briefcase, HardHat, ExternalLink, Users, Square } from 'lucide-react';
 import { fetchPermitsByParcelId, formatDate, getStatusColor, formatStatus } from '@/lib/queries';
 import { PageLoader } from '@/components/common/loading-spinner';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,7 @@ function isOthers(text: string | null | undefined): boolean {
   return text.toLowerCase() === 'others';
 }
 
-// Build main title: "<Project Type> for <Building Type>" (same as card)
+// Build main title: "<Project Type> for <Building Type> in <Location>"
 // If result is "Others" or no title, use "Project in <Location>" format
 function getMainTitle(
   projectType: string | null | undefined,
@@ -56,6 +56,11 @@ function getMainTitle(
       return `Project in ${area}`;
     }
     return 'Project';
+  }
+
+  // Append location to the title
+  if (area) {
+    return `${title} in ${area}`;
   }
 
   return title;
@@ -179,23 +184,6 @@ export default function ParcelDetailPage() {
           Project #{latestPermit?.project_no || parcel_id}
         </p>
         <h1 className="mt-1 text-3xl font-bold text-secondary-900">{mainTitle}</h1>
-        {(() => {
-          const masterProject = rera_project?.master_project_en && !isArabic(rera_project.master_project_en) ? rera_project.master_project_en : null;
-          const area = getEnglishText(area_name);
-          // If both exist and are the same, only show one
-          const showArea = area && (!masterProject || masterProject.toLowerCase() !== area.toLowerCase());
-
-          if (!masterProject && !area) return null;
-          return (
-            <div className="mt-2 flex items-start gap-2 text-secondary-600">
-              <MapPin className="h-4 w-4 mt-0.5" />
-              <div>
-                {masterProject && <span className="block">{masterProject}</span>}
-                {showArea && <span className={masterProject ? "block text-secondary-400" : "block"}>{area}</span>}
-              </div>
-            </div>
-          );
-        })()}
         {latestPermit?.project_status_english && (
           <div className="mt-3">
             <Badge
