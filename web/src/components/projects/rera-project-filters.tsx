@@ -6,6 +6,7 @@ import { SearchWithSuggestions } from '@/components/common/search-with-suggestio
 import { Button } from '@/components/ui/button';
 import { X, Home, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatStatus } from '@/lib/queries';
 import type { ProjectTypeFilter } from '@/lib/queries';
 
 interface RERAProjectFiltersProps {
@@ -70,8 +71,8 @@ export function RERAProjectFilters({
           className={cn(
             'px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2',
             filters.projectType === 'buildings'
-              ? 'bg-teal-500 text-white'
-              : 'bg-teal-50 text-teal-700 hover:bg-teal-100'
+              ? 'bg-blue-500 text-white'
+              : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
           )}
         >
           <Building2 className="h-4 w-4" />
@@ -94,7 +95,10 @@ export function RERAProjectFilters({
           onChange={(e) => onFilterChange('status', e.target.value)}
           options={[
             { value: '', label: 'All' },
-            ...filterOptions.statuses.map((s) => ({ value: s, label: s })),
+            ...filterOptions.statuses
+              // Filter out CONDITIONAL_ACTIVATING since we treat it as ACTIVE
+              .filter((s) => s.toUpperCase() !== 'CONDITIONAL_ACTIVATING')
+              .map((s) => ({ value: s, label: formatStatus(s) || s })),
           ]}
         />
 

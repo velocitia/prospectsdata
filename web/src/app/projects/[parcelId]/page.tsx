@@ -3,8 +3,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Building2, MapPin, Calendar, FileText, Briefcase, HardHat, ExternalLink, Users } from 'lucide-react';
-import { fetchPermitsByParcelId, formatDate, getStatusColor } from '@/lib/queries';
+import { ArrowLeft, Building2, Calendar, FileText, Briefcase, HardHat, ExternalLink, Users, Square, MapPin } from 'lucide-react';
+import { fetchPermitsByParcelId, formatDate, getStatusColor, formatStatus } from '@/lib/queries';
 import { PageLoader } from '@/components/common/loading-spinner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,24 +23,42 @@ function getEnglishText(text: string | null | undefined): string | null {
   return text;
 }
 
-// Build main title: "<Project Type> for <Building Type>"
+// Check if text is "Others" (case-insensitive)
+function isOthers(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return text.toLowerCase() === 'others';
+}
+
+// Build main title: "<Project Type> for <Building Type>" (same as card)
+// If result is "Others" or no title, use "Project in <Location>" format
 function getMainTitle(
   projectType: string | null | undefined,
   buildingType: string | null | undefined,
-  parcelId: number
+  areaName: string | null | undefined
 ): string {
   const pType = getEnglishText(projectType);
   const bType = getEnglishText(buildingType);
+  const area = getEnglishText(areaName);
+
+  let title: string | null = null;
 
   if (pType && bType) {
-    return `${pType} for ${bType}`;
+    title = `${pType} for ${bType}`;
   } else if (bType) {
-    return bType;
+    title = bType;
   } else if (pType) {
-    return pType;
+    title = pType;
   }
 
-  return `Parcel ${parcelId}`;
+  // If title is "Others" or no title, use location format
+  if (!title || isOthers(title)) {
+    if (area) {
+      return `Project in ${area}`;
+    }
+    return 'Project';
+  }
+
+  return title;
 }
 
 // Company info type
@@ -90,8 +108,8 @@ export default function ParcelDetailPage() {
   // Get the latest permit for title
   const latestPermit = permits[0];
   const mainTitle = latestPermit
-    ? getMainTitle(latestPermit.project_type, latestPermit.building_type, parcel_id)
-    : `Parcel ${parcel_id}`;
+    ? getMainTitle(latestPermit.project_type, latestPermit.building_type, area_name)
+    : (area_name ? `Project in ${area_name}` : 'Project');
 
   // Extract companies from all permits and categorize as active/past
   const extractCompanies = () => {
@@ -161,12 +179,23 @@ export default function ParcelDetailPage() {
           Project #{latestPermit?.project_no || parcel_id}
         </p>
         <h1 className="mt-1 text-3xl font-bold text-secondary-900">{mainTitle}</h1>
-        {getEnglishText(area_name) && (
-          <div className="mt-2 flex items-center gap-2 text-secondary-600">
-            <MapPin className="h-4 w-4" />
-            <span>{area_name}</span>
-          </div>
-        )}
+        {(() => {
+          const masterProject = rera_project?.master_project_en && !isArabic(rera_project.master_project_en) ? rera_project.master_project_en : null;
+          const area = getEnglishText(area_name);
+          // If both exist and are the same, only show one
+          const showArea = area && (!masterProject || masterProject.toLowerCase() !== area.toLowerCase());
+
+          if (!masterProject && !area) return null;
+          return (
+            <div className="mt-2 flex items-start gap-2 text-secondary-600">
+              <MapPin className="h-4 w-4 mt-0.5" />
+              <div>
+                {masterProject && <span className="block">{masterProject}</span>}
+                {showArea && <span className={masterProject ? "block text-secondary-400" : "block"}>{area}</span>}
+              </div>
+            </div>
+          );
+        })()}
         {latestPermit?.project_status_english && (
           <div className="mt-3">
             <Badge
@@ -182,15 +211,13 @@ export default function ParcelDetailPage() {
                   : 'secondary'
               }
             >
-              {latestPermit.project_status_english}
+              {formatStatus(latestPermit.project_status_english)}
             </Badge>
           </div>
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="space-y-6">
           {/* Developer Project Link */}
           {rera_project && (
             <Card className="border-primary-200 bg-primary-50">
@@ -225,6 +252,107 @@ export default function ParcelDetailPage() {
                       <ExternalLink className="ml-2 h-4 w-4" />
                     </Button>
                   </Link>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Project Overview */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Project Overview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <dl className="grid grid-cols-2 gap-4">
+                {latestPermit?.project_no && (
+                  <div>
+                    <dt className="text-sm text-secondary-500">Project Number</dt>
+                    <dd className="font-medium">{latestPermit.project_no}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-sm text-secondary-500">Parcel ID</dt>
+                  <dd className="font-medium">{parcel_id}</dd>
+                </div>
+                {land_registry?.property_id && (
+                  <div>
+                    <dt className="text-sm text-secondary-500">Property ID</dt>
+                    <dd className="font-medium">{land_registry.property_id}</dd>
+                  </div>
+                )}
+                {getEnglishText(latestPermit?.building_type) && (
+                  <div>
+                    <dt className="text-sm text-secondary-500">Building Type</dt>
+                    <dd className="font-medium">{latestPermit.building_type}</dd>
+                  </div>
+                )}
+                {getEnglishText(latestPermit?.project_type) && (
+                  <div>
+                    <dt className="text-sm text-secondary-500">Project Type</dt>
+                    <dd className="font-medium">{latestPermit.project_type}</dd>
+                  </div>
+                )}
+                {getEnglishText(latestPermit?.related_entity_name_en) && (
+                  <div className="col-span-2">
+                    <dt className="text-sm text-secondary-500">Authority</dt>
+                    <dd className="font-medium">{latestPermit.related_entity_name_en}</dd>
+                  </div>
+                )}
+              </dl>
+
+              {/* Timeline Section */}
+              {latestPermit && (latestPermit.project_creation_date || latestPermit.work_start_date || latestPermit.expected_completion_date) && (
+                <div className="border-t border-secondary-200 mt-4 pt-4">
+                  <p className="text-xs font-semibold text-secondary-500 uppercase tracking-wider mb-3">Timeline</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {latestPermit.project_creation_date && (
+                      <div className="flex items-center gap-3">
+                        <Calendar className="h-5 w-5 text-secondary-400" />
+                        <div>
+                          <p className="text-sm text-secondary-500">Created</p>
+                          <p className="font-medium">{formatDate(latestPermit.project_creation_date)}</p>
+                        </div>
+                      </div>
+                    )}
+                    {latestPermit.work_start_date && (
+                      <div className="flex items-center gap-3">
+                        <Calendar className="h-5 w-5 text-secondary-400" />
+                        <div>
+                          <p className="text-sm text-secondary-500">Work Started</p>
+                          <p className="font-medium">{formatDate(latestPermit.work_start_date)}</p>
+                        </div>
+                      </div>
+                    )}
+                    {latestPermit.expected_completion_date && (
+                      <div className="flex items-center gap-3">
+                        <Calendar className="h-5 w-5 text-green-500" />
+                        <div>
+                          <p className="text-sm text-secondary-500">Expected Completion</p>
+                          <p className="font-medium">{formatDate(latestPermit.expected_completion_date)}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Summary */}
+          {land_registry?.actual_area && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <div className="flex items-center gap-3 rounded-lg bg-secondary-50 p-4">
+                    <Square className="h-8 w-8 text-primary-600" />
+                    <div>
+                      <p className="text-2xl font-bold">{land_registry.actual_area.toLocaleString()}</p>
+                      <p className="text-sm text-secondary-500">Area (sq ft)</p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -372,7 +500,7 @@ export default function ParcelDetailPage() {
                           </div>
                           {permit.project_status_english && (
                             <Badge variant={badgeVariant}>
-                              {permit.project_status_english}
+                              {formatStatus(permit.project_status_english)}
                             </Badge>
                           )}
                         </div>
@@ -451,70 +579,7 @@ export default function ParcelDetailPage() {
               )}
             </CardContent>
           </Card>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Land Registry Info */}
-          {land_registry && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5" />
-                  Land Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <InfoRow label="Property ID" value={land_registry.property_id} />
-                <InfoRow label="Area" value={land_registry.area_name_en} />
-                <InfoRow label="Land Number" value={land_registry.land_number} />
-                <InfoRow
-                  label="Actual Area"
-                  value={land_registry.actual_area ? `${land_registry.actual_area.toLocaleString()} sq ft` : null}
-                />
-                <InfoRow label="Property Type" value={land_registry.property_type_en} />
-                <InfoRow label="Sub Type" value={land_registry.property_sub_type_en} />
-                <InfoRow label="Land Type" value={land_registry.land_type_en} />
-                <InfoRow label="Freehold" value={land_registry.is_free_hold ? 'Yes' : 'No'} />
-                <InfoRow label="Registered" value={land_registry.is_registered ? 'Yes' : 'No'} />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <InfoRow label="Parcel ID" value={parcel_id} />
-              <InfoRow label="Area" value={area_name} />
-              <InfoRow label="Total Permits" value={permit_count} />
-              <InfoRow
-                label="Developer Project"
-                value={rera_project ? 'Yes' : 'No (Independent)'}
-              />
-            </CardContent>
-          </Card>
-        </div>
       </div>
-    </div>
-  );
-}
-
-function InfoRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-}) {
-  return (
-    <div className="flex justify-between border-b border-secondary-100 pb-2 last:border-0">
-      <span className="text-sm text-secondary-500">{label}</span>
-      <span className="text-sm font-medium text-secondary-900 text-right">
-        {value ?? '-'}
-      </span>
     </div>
   );
 }

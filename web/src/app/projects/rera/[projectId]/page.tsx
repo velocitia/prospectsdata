@@ -5,7 +5,6 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
   ArrowLeft,
-  MapPin,
   Calendar,
   Building2,
   Home,
@@ -13,8 +12,12 @@ import {
   FileText,
   Briefcase,
   HardHat,
+  LandPlot,
+  Square,
+  LayoutGrid,
+  MapPin,
 } from 'lucide-react';
-import { fetchRERAProjectById, formatDate, getStatusColor } from '@/lib/queries';
+import { fetchRERAProjectById, formatDate, getStatusColor, formatStatus } from '@/lib/queries';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -32,23 +35,30 @@ function getEnglishText(text: string | null | undefined): string | null {
   return text;
 }
 
-// Get project title - prioritize project_name
+// Get project title - "<Project Name> in <Location>"
 function getProjectTitle(project: any): string {
+  const area = getEnglishText(project.area_name_en);
+
   // First priority: translated project name
+  let projectName = null;
   if (project.project_name && !isArabic(project.project_name)) {
-    return project.project_name;
+    projectName = project.project_name;
+  } else if (project.master_project_en && !isArabic(project.master_project_en)) {
+    projectName = project.master_project_en;
+  } else if (project.project_description_en && !isArabic(project.project_description_en)) {
+    projectName = project.project_description_en;
   }
-  // Fallbacks
-  if (project.master_project_en && !isArabic(project.master_project_en)) {
-    return project.master_project_en;
+
+  // Build title with location
+  if (projectName && area) {
+    return `${projectName} in ${area}`;
+  } else if (projectName) {
+    return projectName;
+  } else if (area) {
+    return `Project in ${area}`;
   }
-  if (project.project_description_en && !isArabic(project.project_description_en)) {
-    return project.project_description_en;
-  }
-  if (project.area_name_en && !isArabic(project.area_name_en)) {
-    return `${project.area_name_en} Project`;
-  }
-  return `Project ${project.project_id}`;
+
+  return 'Project';
 }
 
 export default function RERAProjectDetailPage() {
@@ -108,21 +118,32 @@ export default function RERAProjectDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm text-secondary-500">
-              {getEnglishText(project.developer_name_en) || getEnglishText(project.master_developer_name) || getEnglishText(project.developer_name) || 'Developer'}
+              Project #{project.project_id}
             </p>
             <h1 className="mt-1 text-3xl font-bold text-secondary-900">
               {getProjectTitle(project)}
             </h1>
-            {getEnglishText(project.area_name_en) && (
-              <div className="mt-2 flex items-center gap-2 text-secondary-600">
-                <MapPin className="h-4 w-4" />
-                <span>{project.area_name_en}</span>
-              </div>
-            )}
+            {(() => {
+              const masterProject = project.master_project_en && !isArabic(project.master_project_en) ? project.master_project_en : null;
+              const area = project.area_name_en && !isArabic(project.area_name_en) ? project.area_name_en : null;
+              // If both exist and are the same, only show one
+              const showArea = area && (!masterProject || masterProject.toLowerCase() !== area.toLowerCase());
+
+              if (!masterProject && !area) return null;
+              return (
+                <div className="mt-2 flex items-start gap-2 text-secondary-600">
+                  <MapPin className="h-4 w-4 mt-0.5" />
+                  <div>
+                    {masterProject && <span className="block">{masterProject}</span>}
+                    {showArea && <span className="block text-secondary-400">{area}</span>}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
           {project.project_status && (
             <Badge variant={badgeVariant} className="text-sm">
-              {project.project_status}
+              {formatStatus(project.project_status)}
             </Badge>
           )}
         </div>
@@ -144,24 +165,34 @@ export default function RERAProjectDetailPage() {
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main Info */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Project Overview */}
+      <div className="space-y-6">
+          {/* Project Overview (with Timeline) */}
           <Card>
             <CardHeader>
               <CardTitle>Project Overview</CardTitle>
             </CardHeader>
             <CardContent>
               <dl className="grid grid-cols-2 gap-4">
-                <div>
-                  <dt className="text-sm text-secondary-500">Project ID</dt>
-                  <dd className="font-medium">{project.project_id}</dd>
-                </div>
                 {project.project_number && (
                   <div>
                     <dt className="text-sm text-secondary-500">Project Number</dt>
                     <dd className="font-medium">{project.project_number}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-sm text-secondary-500">Project ID</dt>
+                  <dd className="font-medium">{project.project_id}</dd>
+                </div>
+                {project.linked_parcel_id && (
+                  <div>
+                    <dt className="text-sm text-secondary-500">Parcel ID</dt>
+                    <dd className="font-medium">{project.linked_parcel_id}</dd>
+                  </div>
+                )}
+                {project.linked_land_registry?.property_id && (
+                  <div>
+                    <dt className="text-sm text-secondary-500">Property ID</dt>
+                    <dd className="font-medium">{project.linked_land_registry.property_id}</dd>
                   </div>
                 )}
                 {getEnglishText(project.master_developer_name) && (
@@ -172,7 +203,7 @@ export default function RERAProjectDetailPage() {
                 )}
                 {getEnglishText(project.zoning_authority_en) && (
                   <div>
-                    <dt className="text-sm text-secondary-500">Zoning Authority</dt>
+                    <dt className="text-sm text-secondary-500">Authority</dt>
                     <dd className="font-medium">{project.zoning_authority_en}</dd>
                   </div>
                 )}
@@ -183,14 +214,50 @@ export default function RERAProjectDetailPage() {
                   </div>
                 )}
               </dl>
+
+              {/* Timeline Section */}
+              {(project.project_start_date || project.project_end_date || project.completion_date) && (
+                <div className="border-t border-secondary-200 mt-4 pt-4">
+                  <p className="text-xs font-semibold text-secondary-500 uppercase tracking-wider mb-3">Timeline</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {project.project_start_date && (
+                      <div className="flex items-center gap-3">
+                        <Calendar className="h-5 w-5 text-secondary-400" />
+                        <div>
+                          <p className="text-sm text-secondary-500">Start Date</p>
+                          <p className="font-medium">{formatDate(project.project_start_date)}</p>
+                        </div>
+                      </div>
+                    )}
+                    {project.project_end_date && (
+                      <div className="flex items-center gap-3">
+                        <Calendar className="h-5 w-5 text-secondary-400" />
+                        <div>
+                          <p className="text-sm text-secondary-500">End Date</p>
+                          <p className="font-medium">{formatDate(project.project_end_date)}</p>
+                        </div>
+                      </div>
+                    )}
+                    {project.completion_date && (
+                      <div className="flex items-center gap-3">
+                        <Calendar className="h-5 w-5 text-green-500" />
+                        <div>
+                          <p className="text-sm text-secondary-500">Completion Date</p>
+                          <p className="font-medium">{formatDate(project.completion_date)}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Units & Buildings - only show if there are any non-zero values */}
-          {(project.no_of_villas > 0 || project.no_of_units > 0 || project.no_of_buildings > 0 || project.no_of_lands > 0) && (
+          {/* Summary */}
+          {(project.no_of_villas > 0 || project.no_of_units > 0 || project.no_of_buildings > 0 || project.no_of_lands > 0 || project.linked_land_registry?.actual_area) && (
             <Card>
               <CardHeader>
-                <CardTitle>Units & Buildings</CardTitle>
+                <CardTitle>Summary</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -205,7 +272,7 @@ export default function RERAProjectDetailPage() {
                   )}
                   {project.no_of_units > 0 && (
                     <div className="flex items-center gap-3 rounded-lg bg-secondary-50 p-4">
-                      <Users className="h-8 w-8 text-primary-600" />
+                      <LayoutGrid className="h-8 w-8 text-primary-600" />
                       <div>
                         <p className="text-2xl font-bold">{project.no_of_units}</p>
                         <p className="text-sm text-secondary-500">Units</p>
@@ -223,10 +290,19 @@ export default function RERAProjectDetailPage() {
                   )}
                   {project.no_of_lands > 0 && (
                     <div className="flex items-center gap-3 rounded-lg bg-secondary-50 p-4">
-                      <MapPin className="h-8 w-8 text-primary-600" />
+                      <LandPlot className="h-8 w-8 text-primary-600" />
                       <div>
                         <p className="text-2xl font-bold">{project.no_of_lands}</p>
                         <p className="text-sm text-secondary-500">Lands</p>
+                      </div>
+                    </div>
+                  )}
+                  {project.linked_land_registry?.actual_area && (
+                    <div className="flex items-center gap-3 rounded-lg bg-secondary-50 p-4">
+                      <Square className="h-8 w-8 text-primary-600" />
+                      <div>
+                        <p className="text-2xl font-bold">{project.linked_land_registry.actual_area.toLocaleString()}</p>
+                        <p className="text-sm text-secondary-500">Area (sq ft)</p>
                       </div>
                     </div>
                   )}
@@ -235,24 +311,53 @@ export default function RERAProjectDetailPage() {
             </Card>
           )}
 
-          {/* Consultants & Contractors */}
+          {/* Companies Involved */}
           {(() => {
             const englishConsultants = project.unique_consultants?.filter((c: string) => !isArabic(c)) || [];
             const englishContractors = project.unique_contractors?.filter((c: string) => !isArabic(c)) || [];
-            if (englishConsultants.length === 0 && englishContractors.length === 0) return null;
+            const developerName = getEnglishText(project.developer_name_en) || getEnglishText(project.developer_name);
+            const developerId = project.developer_id;
+
+            if (englishConsultants.length === 0 && englishContractors.length === 0 && !developerName) return null;
             return (
               <Card>
                 <CardHeader>
-                  <CardTitle>Consultants & Contractors</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Companies Involved
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-6">
+                  {/* Developer */}
+                  {developerName && (
+                    <div>
+                      <h4 className="flex items-center gap-2 text-sm font-semibold text-secondary-700 mb-2">
+                        <Building2 className="h-4 w-4" />
+                        Developer
+                      </h4>
+                      <div className="pl-6">
+                        {developerId ? (
+                          <Link
+                            href={`/companies/developer/${developerId}`}
+                            className="text-primary-600 hover:text-primary-700 hover:underline font-medium"
+                          >
+                            {developerName}
+                          </Link>
+                        ) : (
+                          <span className="text-secondary-900 font-medium">{developerName}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Consultants */}
                   {englishConsultants.length > 0 && (
                     <div>
-                      <h4 className="flex items-center gap-2 text-sm font-medium text-secondary-700 mb-2">
+                      <h4 className="flex items-center gap-2 text-sm font-semibold text-secondary-700 mb-2">
                         <Briefcase className="h-4 w-4" />
                         Consultants ({englishConsultants.length})
                       </h4>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 pl-6">
                         {englishConsultants.map((consultant: string, i: number) => (
                           <Badge key={i} variant="secondary">
                             {consultant}
@@ -261,13 +366,15 @@ export default function RERAProjectDetailPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Contractors */}
                   {englishContractors.length > 0 && (
                     <div>
-                      <h4 className="flex items-center gap-2 text-sm font-medium text-secondary-700 mb-2">
+                      <h4 className="flex items-center gap-2 text-sm font-semibold text-secondary-700 mb-2">
                         <HardHat className="h-4 w-4" />
                         Contractors ({englishContractors.length})
                       </h4>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 pl-6">
                         {englishContractors.map((contractor: string, i: number) => (
                           <Badge key={i} variant="secondary">
                             {contractor}
@@ -281,13 +388,13 @@ export default function RERAProjectDetailPage() {
             );
           })()}
 
-          {/* Permits List */}
+          {/* Permit History */}
           {project.permits?.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Construction Permits ({project.permit_count})
+                  Permit History ({project.permit_count})
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -332,71 +439,6 @@ export default function RERAProjectDetailPage() {
               </CardContent>
             </Card>
           )}
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Timeline */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Timeline</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {project.project_start_date && (
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-secondary-400" />
-                  <div>
-                    <p className="text-sm text-secondary-500">Start Date</p>
-                    <p className="font-medium">{formatDate(project.project_start_date)}</p>
-                  </div>
-                </div>
-              )}
-              {project.project_end_date && (
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-secondary-400" />
-                  <div>
-                    <p className="text-sm text-secondary-500">End Date</p>
-                    <p className="font-medium">{formatDate(project.project_end_date)}</p>
-                  </div>
-                </div>
-              )}
-              {project.completion_date && (
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-green-500" />
-                  <div>
-                    <p className="text-sm text-secondary-500">Completion Date</p>
-                    <p className="font-medium">{formatDate(project.completion_date)}</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Statistics */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Statistics</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-secondary-600">Parcels</span>
-                <span className="font-semibold">{project.parcel_count || 0}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-secondary-600">Permits</span>
-                <span className="font-semibold">{project.permit_count || 0}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-secondary-600">Consultants</span>
-                <span className="font-semibold">{project.unique_consultants?.length || 0}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-secondary-600">Contractors</span>
-                <span className="font-semibold">{project.unique_contractors?.length || 0}</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </div>
   );

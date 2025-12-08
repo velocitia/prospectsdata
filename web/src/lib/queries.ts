@@ -864,14 +864,46 @@ export function formatDate(date: string | null | undefined): string {
   }
 }
 
+// Normalize status: treat CONDITIONAL_ACTIVATING as ACTIVE
+export function normalizeStatus(status: string | null | undefined): string | null {
+  if (!status) return null;
+  if (status.toUpperCase() === 'CONDITIONAL_ACTIVATING') {
+    return 'Active';
+  }
+  return status;
+}
+
+// Format status for display: Capitalize instead of ALL CAPS
+// Returns null for statuses that should be hidden (Not Started, Pending)
+export function formatStatus(status: string | null | undefined): string | null {
+  if (!status) return null;
+  const normalized = normalizeStatus(status);
+  if (!normalized) return null;
+
+  // Hide "Not Started" and "Pending" statuses
+  const lowerStatus = normalized.toLowerCase();
+  if (lowerStatus === 'not started' || lowerStatus === 'not_started' ||
+      lowerStatus === 'pending' || lowerStatus === 'notstarted') {
+    return null;
+  }
+
+  // Convert to title case (capitalize first letter of each word)
+  return normalized
+    .toLowerCase()
+    .split(/[\s_]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 export function getStatusColor(status: string | null | undefined): string {
   if (!status) return 'gray';
-  const normalizedStatus = status.toLowerCase();
+  // Normalize CONDITIONAL_ACTIVATING to ACTIVE for color purposes
+  const normalizedStatus = normalizeStatus(status)?.toLowerCase() || '';
 
-  if (normalizedStatus.includes('completed') || normalizedStatus.includes('done')) {
+  if (normalizedStatus.includes('active') || normalizedStatus.includes('progress') || normalizedStatus.includes('ongoing')) {
     return 'green';
   }
-  if (normalizedStatus.includes('progress') || normalizedStatus.includes('ongoing')) {
+  if (normalizedStatus.includes('completed') || normalizedStatus.includes('done')) {
     return 'blue';
   }
   if (normalizedStatus.includes('pending') || normalizedStatus.includes('planned')) {
@@ -898,6 +930,16 @@ export async function fetchRERAProjects(filters: RERAProjectFilters = {}) {
       return query.gt('no_of_buildings', 0);
     }
     return query;
+  };
+
+  // Helper to apply status filter - treats CONDITIONAL_ACTIVATING as ACTIVE
+  const applyStatusFilter = (query: any, statusValue: string | undefined) => {
+    if (!statusValue) return query;
+    // When filtering by ACTIVE, also include CONDITIONAL_ACTIVATING
+    if (statusValue.toUpperCase() === 'ACTIVE') {
+      return query.in('project_status', ['ACTIVE', 'CONDITIONAL_ACTIVATING']);
+    }
+    return query.eq('project_status', statusValue);
   };
 
   // If searching, we need to also search by developer English name and location synonyms
@@ -975,7 +1017,7 @@ export async function fetchRERAProjects(filters: RERAProjectFilters = {}) {
           .order('project_start_date', { ascending: false, nullsFirst: false })
           .or(`project_id::text.ilike.%${search}%,developer_name.ilike.%${search}%,project_description_en.ilike.%${search}%,master_project_en.ilike.%${search}%,area_name_en.ilike.%${search}%`);
 
-        if (status) query = query.eq('project_status', status);
+        query = applyStatusFilter(query, status);
         if (area) query = query.eq('area_name_en', area);
         query = applyProjectTypeFilter(query);
 
@@ -993,7 +1035,7 @@ export async function fetchRERAProjects(filters: RERAProjectFilters = {}) {
             .order('project_start_date', { ascending: false, nullsFirst: false })
             .in('developer_id', matchingDeveloperIds);
 
-          if (status) query = query.eq('project_status', status);
+          query = applyStatusFilter(query, status);
           if (area) query = query.eq('area_name_en', area);
           query = applyProjectTypeFilter(query);
 
@@ -1012,7 +1054,7 @@ export async function fetchRERAProjects(filters: RERAProjectFilters = {}) {
             .order('project_start_date', { ascending: false, nullsFirst: false })
             .in('area_name_en', matchingAreaNames);
 
-          if (status) query = query.eq('project_status', status);
+          query = applyStatusFilter(query, status);
           if (area) query = query.eq('area_name_en', area);
           query = applyProjectTypeFilter(query);
 
@@ -1068,7 +1110,7 @@ export async function fetchRERAProjects(filters: RERAProjectFilters = {}) {
     .order('project_start_date', { ascending: false, nullsFirst: false });
 
   if (status) {
-    query = query.eq('project_status', status);
+    query = applyStatusFilter(query, status);
   }
 
   if (area) {
@@ -1149,18 +1191,35 @@ export async function fetchRERAProjectById(projectId: number) {
 
   if (parcelError) throw parcelError;
 
-  const parcelIds = parcels?.map((p) => p.parcel_id) || [];
+  // Combine parcel_ids from land_registry AND the project's own parcel_id (if extracted)
+  const landRegistryParcelIds = parcels?.map((p) => p.parcel_id) || [];
+  const allParcelIds = project.parcel_id
+    ? [...new Set([project.parcel_id, ...landRegistryParcelIds])]
+    : landRegistryParcelIds;
 
   // Get permits from project_information for these parcels
   let permits: any[] = [];
   let uniqueConsultants: string[] = [];
   let uniqueContractors: string[] = [];
 
-  if (parcelIds.length > 0) {
+  // Also fetch land registry info for the project's parcel_id if it exists
+  let linkedLandRegistry: any = null;
+  if (project.parcel_id) {
+    const { data: landData } = await supabase
+      .from('land_registry')
+      .select('*')
+      .eq('parcel_id', project.parcel_id)
+      .maybeSingle();
+
+    linkedLandRegistry = landData;
+  }
+
+  if (allParcelIds.length > 0) {
     const { data: permitsData, error: permitsError } = await supabase
       .from('project_information')
       .select('*')
-      .in('parcel_id', parcelIds);
+      .in('parcel_id', allParcelIds)
+      .order('project_creation_date', { ascending: false });
 
     if (permitsError) throw permitsError;
 
@@ -1186,12 +1245,15 @@ export async function fetchRERAProjectById(projectId: number) {
 
   return {
     ...projectWithDeveloperEn,
-    parcel_count: parcelIds.length,
+    parcel_count: allParcelIds.length,
     permit_count: permits.length,
     parcels: parcels || [],
     permits,
     unique_consultants: uniqueConsultants,
     unique_contractors: uniqueContractors,
+    // New fields for linked parcel data
+    linked_parcel_id: project.parcel_id || null,
+    linked_land_registry: linkedLandRegistry,
   };
 }
 

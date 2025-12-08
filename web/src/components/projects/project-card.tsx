@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { MapPin, Calendar, Briefcase, HardHat, Building2 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { formatDate, getStatusColor } from '@/lib/queries';
+import { formatDate, getStatusColor, formatStatus } from '@/lib/queries';
 import type { ProjectInfo } from '@/lib/types';
 
 interface ProjectCardProps {
@@ -34,20 +34,38 @@ function getEnglishText(text: string | null | undefined): string | null {
   return text;
 }
 
+// Check if text is "Others" (case-insensitive)
+function isOthers(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return text.toLowerCase() === 'others';
+}
+
 // Build main title: "<Project Type> for <Building Type>"
+// If result is "Others" or no title, use "Project in <Location>" format
 function getMainTitle(project: ProjectCardProps['project']): string {
   const projectType = getEnglishText(project.project_type);
   const buildingType = getEnglishText(project.building_type);
+  const areaName = getEnglishText(project.area_name);
+
+  let title: string | null = null;
 
   if (projectType && buildingType) {
-    return `${projectType} for ${buildingType}`;
+    title = `${projectType} for ${buildingType}`;
   } else if (buildingType) {
-    return buildingType;
+    title = buildingType;
   } else if (projectType) {
-    return projectType;
+    title = projectType;
   }
 
-  return `Parcel ${project.parcel_id}`;
+  // If title is "Others" or no title, use location format
+  if (!title || isOthers(title)) {
+    if (areaName) {
+      return `Project in ${areaName}`;
+    }
+    return 'Project';
+  }
+
+  return title;
 }
 
 export function ProjectCard({ project }: ProjectCardProps) {
@@ -85,9 +103,9 @@ export function ProjectCard({ project }: ProjectCardProps) {
               </h3>
             </div>
             {/* Line 3: Status badge */}
-            {project.project_status_english && (
+            {project.project_status_english && formatStatus(project.project_status_english) && (
               <Badge variant={badgeVariant} className="shrink-0">
-                {project.project_status_english}
+                {formatStatus(project.project_status_english)}
               </Badge>
             )}
           </div>

@@ -1,8 +1,8 @@
 import Link from 'next/link';
-import { MapPin, Calendar, Building2, Home, Users } from 'lucide-react';
+import { MapPin, Calendar, Building2, Home, LayoutGrid } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { formatDate, getStatusColor } from '@/lib/queries';
+import { formatDate, getStatusColor, formatStatus } from '@/lib/queries';
 import type { RERAProject } from '@/lib/types';
 
 // Project type helpers
@@ -188,13 +188,13 @@ export function RERAProjectCard({ project }: RERAProjectCardProps) {
                 </Badge>
               )}
               {hasBuildings(project) && (
-                <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-100">
+                <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
                   Building
                 </Badge>
               )}
-              {project.project_status && (
+              {project.project_status && formatStatus(project.project_status) && (
                 <Badge variant={statusBadgeVariant}>
-                  {project.project_status}
+                  {formatStatus(project.project_status)}
                 </Badge>
               )}
             </div>
@@ -240,7 +240,7 @@ export function RERAProjectCard({ project }: RERAProjectCardProps) {
               )}
               {(project.no_of_units ?? 0) > 0 && (
                 <div className="flex items-center gap-1">
-                  <Users className="h-4 w-4 shrink-0" />
+                  <LayoutGrid className="h-4 w-4 shrink-0" />
                   <span>{project.no_of_units} units</span>
                 </div>
               )}
